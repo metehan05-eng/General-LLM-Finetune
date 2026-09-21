@@ -3,14 +3,6 @@ train.py
 
 General-purpose instruction fine-tuning with Unsloth + QLoRA.
 Designed to run on a free Google Colab T4 GPU (16 GB).
-
-Usage (from repo root, inside Colab or a local GPU environment):
-    python src/train.py
-
-Before running: check Unsloth's model list at
-https://huggingface.co/unsloth for the current recommended 4-bit model id —
-model names get updated as new base models (Llama, Gemma, Qwen, ...) are
-released. MODEL_NAME below is a safe, long-standing default.
 """
 
 import argparse
@@ -24,60 +16,64 @@ try:
 except ImportError:
     from src.prepare_dataset import build_dataset
 
-from model_config import resolve_model_name, SUPPORTED_MODELS
+from model_config import resolve_model_name, resolve_model_spec
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 
-# --- Config -----------------------------------------------------------
-DEFAULT_MODEL_NAME = resolve_model_name()
-MODEL_NAME = DEFAULT_MODEL_NAME
-MAX_SEQ_LENGTH = 2048
+DEFAULT_MODEL_SPEC = resolve_model_spec()
+MODEL_NAME = DEFAULT_MODEL_SPEC.hf_id
+MAX_SEQ_LENGTH = DEFAULT_MODEL_SPEC.default_max_seq_length
 LOAD_IN_4BIT = True
-
 OUTPUT_DIR = str(PROJECT_ROOT / "outputs")
 LORA_R = 16
 LORA_ALPHA = 16
-NUM_TRAIN_EPOCHS = 1  # start small; raise to 2-3 only if eval shows underfitting
+NUM_TRAIN_EPOCHS = 1
 LEARNING_RATE = 2e-4
 PER_DEVICE_BATCH_SIZE = 2
 GRAD_ACCUMULATION_STEPS = 4
-# ------------------------------------------------------------------------
 
 
 def parse_args():
     parser = argparse.ArgumentParser(description="Fine-tune a general-purpose LLM with Unsloth + QLoRA.")
-    parser.add_argument(
-        "--model",
-        type=str,
-        default=None,
-        help="Model key or Hugging Face model id. Examples: llama-3.1-8b, mistral-7b, qwen2.5-7b.",
-    )
-    parser.add_argument(
-        "--max-seq-length",
-        type=int,
-        default=MAX_SEQ_LENGTH,
-        help="Maximum sequence length for tokenization.",
-    )
+    parser.add_argument("--model", type=str, default=None, help="Model key or Hugging Face model id.")
+    parser.add_argument("--max-seq-length", type=int, default=MAX_SEQ_LENGTH, help="Maximum sequence length for tokenization.")
+    parser.add_argument("--epochs", type=int, default=NUM_TRAIN_EPOCHS, help="Number of train epochs.")
+    parser.add_argument("--learning-rate", type=float, default=LEARNING_RATE, help="Learning rate for the optimizer.")
+    parser.add_argument("--lora-r", type=int, default=LORA_R, help="LoRA rank.")
+    parser.add_argument("--lora-alpha", type=int, default=LORA_ALPHA, help="LoRA alpha scaling.")
+    parser.add_argument("--batch-size", type=int, default=PER_DEVICE_BATCH_SIZE, help="Per-device batch size.")
+    parser.add_argument("--gradient-accumulation-steps", type=int, default=GRAD_ACCUMULATION_STEPS, help="Gradient accumulation steps.")
+    parser.add_argument("--output-dir", type=str, default=OUTPUT_DIR, help="Directory to save outputs and adapters.")
+    parser.add_argument("--quantization", choices=["4bit", "8bit"], default="4bit", help="Quantization mode for model loading.")
     return parser.parse_args()
 
 
 def main():
     args = parse_args()
-    global MODEL_NAME, MAX_SEQ_LENGTH
-    MODEL_NAME = resolve_model_name(args.model)
-    MAX_SEQ_LENGTH = args.max_seq_length
+    global MODEL_NAME, MAX_SEQ_LENGTH, LOAD_IN_4BIT, OUTPUT_DIR, LORA_R, LORA_ALPHA
+    global NUM_TRAIN_EPOCHS, LEARNING_RATE, PER_DEVICE_BATCH_SIZE, GRAD_ACCUMULATION_STEPS
 
-    print(f"Selected model: {MODEL_NAME}")
+    model_spec = resolve_model_spec(args.model)
+    MODEL_NAME = model_spec.hf_id
+    MAX_SEQ_LENGTH = args.max_seq_length if args.max_seq_length else model_spec.default_max_seq_length
+    LOAD_IN_4BIT = args.quantization == "4bit"
+    OUTPUT_DIR = args.output_dir
+    LORA_R = args.lora_r
+    LORA_ALPHA = args.lora_alpha
+    NUM_TRAIN_EPOCHS = args.epochs
+    LEARNING_RATE = args.learning_rate
+    PER_DEVICE_BATCH_SIZE = args.batch_size
+    GRAD_ACCUMULATION_STEPS = args.gradient_accumulation_steps
+
+    print(f"Selected model: {MODEL_NAME} ({model_spec.family})")
     print(f"Loading base model: {MODEL_NAME}")
     model, tokenizer = FastLanguageModel.from_pretrained(
         model_name=MODEL_NAME,
         max_seq_length=MAX_SEQ_LENGTH,
-        dtype=None,  # auto-detect (bf16/fp16 depending on GPU)
+        dtype=None,
         load_in_4bit=LOAD_IN_4BIT,
     )
 
-    # Apply LoRA to all transformer layers (not just attention) —
-    # this consistently outperforms attention-only LoRA configs.
     model = FastLanguageModel.get_peft_model(
         model,
         r=LORA_R,
