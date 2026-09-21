@@ -10,16 +10,19 @@ prompt engineering with extra steps. Paste the printed output into your
 README as your before/after evidence.
 """
 
+import argparse
 from pathlib import Path
 
 from unsloth import FastLanguageModel
 
 try:
-    from train import MODEL_NAME, MAX_SEQ_LENGTH, LOAD_IN_4BIT
+    from train import MAX_SEQ_LENGTH, LOAD_IN_4BIT
     from prepare_dataset import PROMPT_TEMPLATE
 except ImportError:
-    from src.train import MODEL_NAME, MAX_SEQ_LENGTH, LOAD_IN_4BIT
+    from src.train import MAX_SEQ_LENGTH, LOAD_IN_4BIT
     from src.prepare_dataset import PROMPT_TEMPLATE
+
+from model_config import resolve_model_name
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 OUTPUT_DIR = str(PROJECT_ROOT / "outputs")
@@ -49,10 +52,31 @@ def generate(model, tokenizer, instruction: str, input_text: str, max_new_tokens
     return response
 
 
+def parse_args():
+    parser = argparse.ArgumentParser(description="Compare a base model vs. a fine-tuned LoRA adapter.")
+    parser.add_argument(
+        "--model",
+        type=str,
+        default=None,
+        help="Model key or Hugging Face model id to evaluate. Examples: llama-3.1-8b, mistral-7b, qwen2.5-7b.",
+    )
+    parser.add_argument(
+        "--max-new-tokens",
+        type=int,
+        default=200,
+        help="Maximum number of tokens to generate per prompt.",
+    )
+    return parser.parse_args()
+
+
 def main():
-    print("Loading base model...")
+    args = parse_args()
+    model_name = resolve_model_name(args.model)
+    max_new_tokens = args.max_new_tokens
+
+    print(f"Loading base model: {model_name}")
     base_model, base_tokenizer = FastLanguageModel.from_pretrained(
-        model_name=MODEL_NAME,
+        model_name=model_name,
         max_seq_length=MAX_SEQ_LENGTH,
         dtype=None,
         load_in_4bit=LOAD_IN_4BIT,
@@ -82,10 +106,10 @@ def main():
             print(f"INPUT: {input_text}")
         print("-" * 80)
 
-        base_output = generate(base_model, base_tokenizer, instruction, input_text)
+        base_output = generate(base_model, base_tokenizer, instruction, input_text, max_new_tokens=max_new_tokens)
         print(f"BASE MODEL:\n{base_output}\n")
 
-        ft_output = generate(ft_model, ft_tokenizer, instruction, input_text)
+        ft_output = generate(ft_model, ft_tokenizer, instruction, input_text, max_new_tokens=max_new_tokens)
         print(f"FINE-TUNED MODEL:\n{ft_output}")
 
     print("\n" + "=" * 80)

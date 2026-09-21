@@ -13,6 +13,7 @@ model names get updated as new base models (Llama, Gemma, Qwen, ...) are
 released. MODEL_NAME below is a safe, long-standing default.
 """
 
+import argparse
 from pathlib import Path
 
 from unsloth import FastLanguageModel
@@ -23,10 +24,13 @@ try:
 except ImportError:
     from src.prepare_dataset import build_dataset
 
+from model_config import resolve_model_name, SUPPORTED_MODELS
+
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 
 # --- Config -----------------------------------------------------------
-MODEL_NAME = "unsloth/Meta-Llama-3.1-8B-bnb-4bit"  # verify current model id on huggingface.co/unsloth
+DEFAULT_MODEL_NAME = resolve_model_name()
+MODEL_NAME = DEFAULT_MODEL_NAME
 MAX_SEQ_LENGTH = 2048
 LOAD_IN_4BIT = True
 
@@ -40,7 +44,30 @@ GRAD_ACCUMULATION_STEPS = 4
 # ------------------------------------------------------------------------
 
 
+def parse_args():
+    parser = argparse.ArgumentParser(description="Fine-tune a general-purpose LLM with Unsloth + QLoRA.")
+    parser.add_argument(
+        "--model",
+        type=str,
+        default=None,
+        help="Model key or Hugging Face model id. Examples: llama-3.1-8b, mistral-7b, qwen2.5-7b.",
+    )
+    parser.add_argument(
+        "--max-seq-length",
+        type=int,
+        default=MAX_SEQ_LENGTH,
+        help="Maximum sequence length for tokenization.",
+    )
+    return parser.parse_args()
+
+
 def main():
+    args = parse_args()
+    global MODEL_NAME, MAX_SEQ_LENGTH
+    MODEL_NAME = resolve_model_name(args.model)
+    MAX_SEQ_LENGTH = args.max_seq_length
+
+    print(f"Selected model: {MODEL_NAME}")
     print(f"Loading base model: {MODEL_NAME}")
     model, tokenizer = FastLanguageModel.from_pretrained(
         model_name=MODEL_NAME,

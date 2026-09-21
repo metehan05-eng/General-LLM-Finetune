@@ -43,19 +43,24 @@ You can add as many rows as you want. The project will mix these examples with t
 ## Google Colab quickstart
 
 1. Open Google Colab.
-2. Create a new notebook.
+2. Change runtime to GPU: Runtime > Change runtime type > T4 GPU.
 3. Run the following commands in a cell:
 
 ```bash
 !git clone https://github.com/metehan05-eng/General-LLM-Finetune.git
 %cd General-LLM-Finetune
 !pip install -r requirements.txt
-!python src/train.py
-!python src/evaluate.py
+!python src/train.py --model llama-3.1-8b
+!python src/evaluate.py --model llama-3.1-8b
 ```
 
-4. Change runtime to GPU: Runtime > Change runtime type > T4 GPU.
-5. Run cells top to bottom.
+You can swap the model by using another supported key:
+
+```bash
+!python src/train.py --model mistral-7b
+!python src/train.py --model qwen2.5-7b
+!python src/train.py --model gemma-2-9b
+```
 
 ## Local usage
 
@@ -83,10 +88,13 @@ python src/evaluate.py
 
 ## Customization
 
-- Change the base language model in `src/train.py`
+- Change the base model by passing `--model` when running training and evaluation
+- Supported keys include: `llama-3.1-8b`, `mistral-7b`, `qwen2.5-7b`, `gemma-2-9b`, and more
 - Update the public dataset source in `src/prepare_dataset.py`
 - Add your own examples inside `data/custom_examples.jsonl`
 - Adjust training parameters like `NUM_TRAIN_EPOCHS`, `LEARNING_RATE`, and `hf_sample_size`
+
+> Bigger models need more VRAM. A 7B/8B model can usually fit on a T4 or single 16GB GPU with QLoRA, while 70B-class models require much more memory and are best run on larger GPUs or in hosted environments.
 
 ## Roadmap
 
