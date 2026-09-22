@@ -113,9 +113,11 @@ SYSTEM_PROMPT = "You are a helpful AI assistant for coding, writing, and practic
 %env RUN_NAME={RUN_NAME}
 %env SYSTEM_PROMPT={SYSTEM_PROMPT}
 
-# 1) Clone repo into a fixed path
-!rm -rf "$REPO_PATH"
-!git clone https://github.com/metehan05-eng/General-LLM-Finetune.git "$REPO_PATH"
+# IMPORTANT:
+# Never delete the current working directory while you are inside it.
+# Instead, start from /content and clone only if the repo is missing.
+!mkdir -p /content
+!cd /content && if [ ! -d "$REPO_PATH" ]; then git clone https://github.com/metehan05-eng/General-LLM-Finetune.git "$REPO_PATH"; fi
 %cd "$REPO_PATH"
 !pwd
 !ls
