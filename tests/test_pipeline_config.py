@@ -52,6 +52,41 @@ class ModelSelectionFlowTests(unittest.TestCase):
         self.assertEqual(result[1], "qwen2.5-7b-my-custom-run")
 
 
+class MultiDatasetAndPromptTests(unittest.TestCase):
+    def test_model_family_groups_are_available(self):
+        model_module = load_module("model_config", SRC_ROOT / "model_config.py")
+
+        families = model_module.get_model_family_options()
+        self.assertIn("llama", families)
+        self.assertIn("mistral", families)
+        self.assertIn("qwen", families)
+
+    def test_system_prompt_is_embedded_in_training_prompt(self):
+        dataset_module = load_module("prepare_dataset", SRC_ROOT / "prepare_dataset.py")
+
+        prompt = dataset_module.build_prompt(
+            "Explain the API design",
+            "Create a REST endpoint",
+            "Use clear routes and validation",
+            system_prompt="You are a senior backend engineer.",
+        )
+
+        self.assertIn("You are a senior backend engineer.", prompt)
+        self.assertIn("Explain the API design", prompt)
+        self.assertIn("Use clear routes and validation", prompt)
+
+    def test_multi_dataset_paths_are_supported(self):
+        dataset_module = load_module("prepare_dataset", SRC_ROOT / "prepare_dataset.py")
+
+        result = dataset_module.resolve_dataset_paths([
+            "data/custom_examples.jsonl",
+            "data/extra_examples.jsonl",
+        ], project_root=PROJECT_ROOT)
+
+        self.assertEqual(len(result), 2)
+        self.assertTrue(all(str(path).endswith(".jsonl") for path in result))
+
+
 class DatasetValidationTests(unittest.TestCase):
     def test_validator_splits_valid_and_invalid_rows(self):
         fake_datasets = types.ModuleType("datasets")

@@ -31,6 +31,7 @@ except ImportError:
     from src.prepare_dataset import PROMPT_TEMPLATE
 
 from model_config import resolve_model_name
+from prepare_dataset import build_prompt
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 OUTPUT_DIR = str(PROJECT_ROOT / "outputs")
@@ -44,8 +45,15 @@ TEST_PROMPTS = [
 ]
 
 
-def generate(model, tokenizer, instruction: str, input_text: str, max_new_tokens: int = 200) -> str:
-    prompt = PROMPT_TEMPLATE.format(instruction, input_text, "")
+def render_block(title: str, message: str):
+    print("\n" + "=" * 80)
+    print(f"{title}")
+    print("-" * 80)
+    print(message.strip())
+
+
+def generate(model, tokenizer, instruction: str, input_text: str, max_new_tokens: int = 200, system_prompt: str | None = None) -> str:
+    prompt = build_prompt(instruction, input_text, "", system_prompt=system_prompt)
     inputs = tokenizer([prompt], return_tensors="pt").to(model.device)
     outputs = model.generate(
         **inputs,
@@ -55,8 +63,10 @@ def generate(model, tokenizer, instruction: str, input_text: str, max_new_tokens
         do_sample=True,
     )
     decoded = tokenizer.batch_decode(outputs)[0]
-    # Strip the prompt echo, keep only the generated response section
-    response = decoded.split("### Response:")[-1].strip()
+    if "Response:" in decoded:
+        response = decoded.split("Response:")[-1].strip()
+    else:
+        response = decoded.strip()
     return response
 
 
@@ -67,6 +77,12 @@ def parse_args():
         type=str,
         default=None,
         help="Model key or Hugging Face model id to evaluate. Examples: llama-3.1-8b, mistral-7b, qwen2.5-7b.",
+    )
+    parser.add_argument(
+        "--system-prompt",
+        type=str,
+        default=None,
+        help="Optional system prompt to show before the evaluation instructions.",
     )
     parser.add_argument(
         "--max-new-tokens",
@@ -114,11 +130,25 @@ def main():
             print(f"INPUT: {input_text}")
         print("-" * 80)
 
-        base_output = generate(base_model, base_tokenizer, instruction, input_text, max_new_tokens=max_new_tokens)
-        print(f"BASE MODEL:\n{base_output}\n")
+        base_output = generate(
+            base_model,
+            base_tokenizer,
+            instruction,
+            input_text,
+            max_new_tokens=max_new_tokens,
+            system_prompt=args.system_prompt,
+        )
+        render_block("BASE MODEL", base_output)
 
-        ft_output = generate(ft_model, ft_tokenizer, instruction, input_text, max_new_tokens=max_new_tokens)
-        print(f"FINE-TUNED MODEL:\n{ft_output}")
+        ft_output = generate(
+            ft_model,
+            ft_tokenizer,
+            instruction,
+            input_text,
+            max_new_tokens=max_new_tokens,
+            system_prompt=args.system_prompt,
+        )
+        render_block("FINE-TUNED MODEL", ft_output)
 
     print("\n" + "=" * 80)
     print("Done. Copy the outputs above into your README as before/after evidence.")

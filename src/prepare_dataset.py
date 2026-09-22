@@ -34,6 +34,19 @@ PROMPT_TEMPLATE = """Below is an instruction that describes a task, paired with 
 ### Response:
 {}"""
 
+
+def build_prompt(instruction: str, input_text: str, output: str, system_prompt: str | None = None) -> str:
+    clean_instruction = str(instruction or "").strip()
+    clean_input = str(input_text or "").strip()
+    clean_output = str(output or "").strip()
+
+    if system_prompt and str(system_prompt).strip():
+        system_text = str(system_prompt).strip()
+        prompt = f"System: {system_text}\n\nInstruction: {clean_instruction}\n\nInput: {clean_input}\n\nResponse: {clean_output}"
+        return prompt
+
+    return PROMPT_TEMPLATE.format(clean_instruction, clean_input, clean_output)
+
 MAX_OUTPUT_CHARS = 15000
 REQUIRED_FIELDS = ("instruction", "input", "output")
 
@@ -126,31 +139,55 @@ def split_train_eval_rows(rows, eval_fraction: float = 0.1, seed: int = 42):
     return train_rows, eval_rows
 
 
-def load_custom_examples() -> "Dataset":
-    if not CUSTOM_EXAMPLES_PATH.exists():
-        raise FileNotFoundError(f"Custom examples file not found: {CUSTOM_EXAMPLES_PATH}")
-
-    rows = []
-    with open(CUSTOM_EXAMPLES_PATH, "r", encoding="utf-8") as f:
-        for line in f:
-            line = line.strip()
-            if not line:
-                continue
-            rows.append(json.loads(line))
-
-    valid_rows, invalid_rows = validate_rows(rows)
-    if invalid_rows:
-        print(f"Warning: {len(invalid_rows)} invalid custom examples were dropped before training.")
-    return Dataset.from_list(valid_rows)
+def resolve_dataset_paths(dataset_paths, project_root: str | Path = PROJECT_ROOT):
+    base_root = Path(project_root)
+    resolved = []
+    for dataset_path in dataset_paths or []:
+        candidate = Path(dataset_path)
+        if not candidate.is_absolute():
+            candidate = base_root / candidate
+        resolved.append(candidate)
+    return resolved
 
 
-def build_dataset(tokenizer, use_hf_dataset: bool = True, hf_sample_size=5000) -> "Dataset":
+def load_custom_examples(dataset_paths=None) -> "Dataset":
+    if dataset_paths is None:
+        dataset_paths = [CUSTOM_EXAMPLES_PATH]
+
+    file_paths = resolve_dataset_paths(dataset_paths)
+    datasets = []
+
+    for file_path in file_paths:
+        if not file_path.exists():
+            raise FileNotFoundError(f"Custom examples file not found: {file_path}")
+
+        rows = []
+        with open(file_path, "r", encoding="utf-8") as f:
+            for line in f:
+                line = line.strip()
+                if not line:
+                    continue
+                rows.append(json.loads(line))
+
+        valid_rows, invalid_rows = validate_rows(rows)
+        if invalid_rows:
+            print(f"Warning: {len(invalid_rows)} invalid examples were dropped from {file_path} before training.")
+        datasets.append(Dataset.from_list(valid_rows))
+
+    if not datasets:
+        return Dataset.from_list([])
+    if len(datasets) == 1:
+        return datasets[0]
+    return concatenate_datasets(datasets)
+
+
+def build_dataset(tokenizer, use_hf_dataset: bool = True, hf_sample_size=5000, dataset_paths=None, system_prompt: str | None = None) -> "Dataset":
     """
     hf_sample_size: on a free Colab T4, training on the full 52k Alpaca set
     takes a while. Set this to e.g. 5000 for a faster first run, or None to
     use the full dataset once you're confident the pipeline works end to end.
     """
-    custom_ds = load_custom_examples()
+    custom_ds = load_custom_examples(dataset_paths=dataset_paths)
 
     if use_hf_dataset:
         try:
@@ -168,7 +205,7 @@ def build_dataset(tokenizer, use_hf_dataset: bool = True, hf_sample_size=5000) -
 
     def _map_fn(examples):
         texts = [
-            format_example(instr, inp or "", out, tokenizer.eos_token)
+            build_prompt(instr, inp or "", out, system_prompt=system_prompt) + tokenizer.eos_token
             for instr, inp, out in zip(
                 examples["instruction"], examples["input"], examples["output"]
             )

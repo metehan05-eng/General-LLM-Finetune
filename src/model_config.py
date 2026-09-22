@@ -106,6 +106,34 @@ def generate_run_name(model_key: str, custom_name: str | None = None) -> str:
     return f"{model_slug}-{custom_slug}"
 
 
+def get_model_family_options() -> List[str]:
+    families = []
+    seen = set()
+    for model_key in MODEL_SELECTION_ORDER:
+        family = MODEL_REGISTRY[model_key].family if model_key in MODEL_REGISTRY else _guess_family(model_key)
+        if family not in seen:
+            families.append(family)
+            seen.add(family)
+    for key in list_supported_models():
+        family = MODEL_REGISTRY[key].family
+        if family not in seen:
+            families.append(family)
+            seen.add(family)
+    return families
+
+
+def get_models_for_family(family_name: str) -> List[str]:
+    family = (family_name or "").strip().lower()
+    matches = []
+    for key in MODEL_SELECTION_ORDER:
+        if key in MODEL_REGISTRY and MODEL_REGISTRY[key].family.lower() == family:
+            matches.append(key)
+    for key in list_supported_models():
+        if key not in matches and MODEL_REGISTRY[key].family.lower() == family:
+            matches.append(key)
+    return matches
+
+
 def get_model_selection_options() -> List[str]:
     ordered = []
     seen = set()
@@ -120,32 +148,70 @@ def get_model_selection_options() -> List[str]:
     return ordered
 
 
-def prompt_for_model_choice(input_fn=input, print_fn=print):
-    options = get_model_selection_options()
-    print_fn("Select a base model to fine-tune:")
+def prompt_for_model_choice(
+    input_fn=input,
+    print_fn=print,
+    include_system_prompt: bool = False,
+    enable_family_selection: bool = False,
+):
+    if enable_family_selection:
+        families = get_model_family_options()
+        print_fn("Choose a model family:")
+        for index, family in enumerate(families, start=1):
+            print_fn(f"  {index}. {family}")
+
+        while True:
+            raw_family = input_fn("Enter family number or family name: ").strip()
+            family_choice = None
+            if raw_family.isdigit():
+                choice = int(raw_family)
+                if 1 <= choice <= len(families):
+                    family_choice = families[choice - 1]
+            else:
+                candidate = raw_family.lower().strip()
+                if candidate in {family.lower() for family in families}:
+                    family_choice = candidate
+
+            if family_choice is not None:
+                break
+            print_fn("Invalid family selection.")
+
+        options = get_models_for_family(family_choice)
+        print_fn(f"Available models for family '{family_choice}':")
+    else:
+        options = get_model_selection_options()
+        print_fn("Select a base model to fine-tune:")
+        family_choice = None
+
     for index, key in enumerate(options, start=1):
         print_fn(f"  {index}. {key}")
 
     while True:
-        raw = input_fn("Enter the model number or model key: ").strip()
+        raw_model = input_fn("Enter model number or model key: ").strip()
         selected = None
-        if raw.isdigit():
-            choice = int(raw)
+        if raw_model.isdigit():
+            choice = int(raw_model)
             if 1 <= choice <= len(options):
                 selected = options[choice - 1]
         else:
-            candidate = raw.lower().strip()
+            candidate = raw_model.lower().strip()
             if candidate in SUPPORTED_MODELS:
                 selected = candidate
 
         if selected is not None:
             break
-
-        print_fn("Invalid choice. Please select one of the listed models.")
+        print_fn("Invalid model choice. Please select one of the listed models.")
 
     custom_name = input_fn("Name this training run (optional): ").strip()
     run_name = generate_run_name(selected, custom_name)
-    return selected, run_name
+
+    if not include_system_prompt:
+        return selected, run_name
+
+    system_prompt = input_fn(
+        "Describe the system prompt for this model (optional, for example: 'You are a helpful coding assistant.'): "
+    ).strip()
+    return selected, run_name, system_prompt
 
 
 def list_supported_models() -> List[str]:

@@ -6,3 +6,4 @@ datasets
 accelerate
 bitsandbytes
 peft
+streamlit

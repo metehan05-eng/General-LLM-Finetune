@@ -44,7 +44,10 @@ GRAD_ACCUMULATION_STEPS = 4
 def parse_args():
     parser = argparse.ArgumentParser(description="Fine-tune a general-purpose LLM with Unsloth + QLoRA.")
     parser.add_argument("--model", type=str, default=None, help="Model key or Hugging Face model id.")
+    parser.add_argument("--family", type=str, default=None, help="Optional model family filter: llama, mistral, qwen, gemma.")
     parser.add_argument("--run-name", type=str, default=None, help="Friendly name for this fine-tuning run.")
+    parser.add_argument("--system-prompt", type=str, default=None, help="System prompt that describes the model's role or behavior.")
+    parser.add_argument("--dataset", type=str, action="append", default=None, help="JSONL dataset path to include in training. Can be passed multiple times.")
     parser.add_argument("--max-seq-length", type=int, default=MAX_SEQ_LENGTH, help="Maximum sequence length for tokenization.")
     parser.add_argument("--epochs", type=int, default=NUM_TRAIN_EPOCHS, help="Number of train epochs.")
     parser.add_argument("--learning-rate", type=float, default=LEARNING_RATE, help="Learning rate for the optimizer.")
@@ -63,10 +66,15 @@ def main():
     global NUM_TRAIN_EPOCHS, LEARNING_RATE, PER_DEVICE_BATCH_SIZE, GRAD_ACCUMULATION_STEPS
 
     if args.model is None:
-        selected_model, auto_run_name = prompt_for_model_choice()
+        selected_model, auto_run_name, system_prompt = prompt_for_model_choice(
+            include_system_prompt=True,
+            enable_family_selection=True,
+        )
         args.model = selected_model
         if args.run_name is None:
             args.run_name = auto_run_name
+        if args.system_prompt is None:
+            args.system_prompt = system_prompt
 
     model_spec = resolve_model_spec(args.model)
     MODEL_NAME = model_spec.hf_id
@@ -111,7 +119,13 @@ def main():
     )
 
     print("Building dataset...")
-    dataset = build_dataset(tokenizer, use_hf_dataset=True, hf_sample_size=5000)
+    dataset = build_dataset(
+        tokenizer,
+        use_hf_dataset=True,
+        hf_sample_size=5000,
+        dataset_paths=args.dataset,
+        system_prompt=args.system_prompt,
+    )
     print(f"Total training examples: {len(dataset)}")
 
     trainer = SFTTrainer(
