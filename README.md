@@ -42,25 +42,65 @@ You can add as many rows as you want. The project will mix these examples with t
 
 ## Google Colab quickstart
 
+For this project to work, you need a GPU runtime. Unsloth will not run on CPU-only environments.
+
+### 1) Open a GPU-enabled Colab session
+
 1. Open Google Colab.
-2. Change runtime to GPU: Runtime > Change runtime type > T4 GPU.
-3. Run the following commands in a cell:
+2. Go to Runtime > Change runtime type.
+3. Set Hardware accelerator to T4 or A100.
+4. Make sure the session shows a GPU is available.
+
+Test it with:
+
+```python
+import torch
+print(torch.cuda.is_available())
+print(torch.cuda.device_count())
+print(torch.cuda.get_device_name(0) if torch.cuda.is_available() else "NO GPU")
+```
+
+If this prints `False`, switch to a GPU runtime and rerun the cell.
+
+### 2) Clone the repo and install dependencies
 
 ```bash
 !git clone https://github.com/metehan05-eng/General-LLM-Finetune.git
 %cd General-LLM-Finetune
 !pip install -r requirements.txt
+```
+
+### 3) Run training
+
+```bash
 !python src/train.py --model llama-3.1-8b
+```
+
+### 4) Run evaluation
+
+```bash
 !python src/evaluate.py --model llama-3.1-8b
 ```
 
-You can swap the model by using another supported key:
+### 5) Optional: install compatible versions for Colab package conflicts
+
+If you see a warning like `gcsfs requires fsspec==2025.12.0`, you can fix it with:
+
+```bash
+!pip install -q "fsspec==2025.12.0" "gcsfs==2025.12.0"
+```
+
+If you do not use `gcsfs`, removing it is also fine.
+
+### 6) Model selection examples
 
 ```bash
 !python src/train.py --model mistral-7b
 !python src/train.py --model qwen2.5-7b
 !python src/train.py --model gemma-2-9b
 ```
+
+> Important: This repository is designed for GPU-enabled training. CPU-only Colab sessions will fail with the Unsloth accelerator error.
 
 ## Local usage
 
