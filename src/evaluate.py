@@ -13,6 +13,14 @@ README as your before/after evidence.
 import argparse
 from pathlib import Path
 
+import torch
+
+if not torch.cuda.is_available():
+    raise RuntimeError(
+        "GPU required for evaluation. In Google Colab, use a GPU runtime (T4/A100) before running this script. "
+        "CPU-only execution is not supported by Unsloth."
+    )
+
 from unsloth import FastLanguageModel
 
 try:

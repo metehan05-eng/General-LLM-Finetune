@@ -8,6 +8,14 @@ Designed to run on a free Google Colab T4 GPU (16 GB).
 import argparse
 from pathlib import Path
 
+import torch
+
+if not torch.cuda.is_available():
+    raise RuntimeError(
+        "GPU required for training. In Google Colab, go to Runtime > Change runtime type > Hardware accelerator = T4 (or A100), "
+        "then rerun this script. CPU-only environments are not supported by Unsloth."
+    )
+
 from unsloth import FastLanguageModel
 from trl import SFTTrainer, SFTConfig
 
