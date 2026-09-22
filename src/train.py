@@ -17,6 +17,12 @@ if not torch.cuda.is_available():
     )
 
 from unsloth import FastLanguageModel
+
+try:
+    from unsloth import is_bfloat16_supported
+except ImportError:
+    is_bfloat16_supported = FastLanguageModel.is_bfloat16_supported
+
 from trl import SFTTrainer, SFTConfig
 
 try:
@@ -140,8 +146,8 @@ def main():
             gradient_accumulation_steps=GRAD_ACCUMULATION_STEPS,
             num_train_epochs=NUM_TRAIN_EPOCHS,
             learning_rate=LEARNING_RATE,
-            fp16=not FastLanguageModel.is_bfloat16_supported(),
-            bf16=FastLanguageModel.is_bfloat16_supported(),
+            fp16=not is_bfloat16_supported(),
+            bf16=is_bfloat16_supported(),
             logging_steps=10,
             optim="adamw_8bit",
             weight_decay=0.01,

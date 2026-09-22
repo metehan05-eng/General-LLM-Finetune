@@ -36,6 +36,19 @@ from prepare_dataset import build_prompt
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 OUTPUT_DIR = str(PROJECT_ROOT / "outputs")
 
+
+def resolve_adapter_path(output_dir: str | None = None) -> Path:
+    if output_dir:
+        return Path(output_dir)
+    run_adapters = sorted(
+        (PROJECT_ROOT / "outputs").glob("*/lora_adapter"),
+        key=lambda p: p.stat().st_mtime,
+        reverse=True,
+    )
+    if run_adapters:
+        return run_adapters[0]
+    return Path(OUTPUT_DIR) / "lora_adapter"
+
 TEST_PROMPTS = [
     ("Explain what overfitting means in machine learning.", ""),
     ("Suggest a short daily plan.", "I'm preparing for a busy work day."),
@@ -90,6 +103,12 @@ def parse_args():
         default=200,
         help="Maximum number of tokens to generate per prompt.",
     )
+    parser.add_argument(
+        "--output-dir",
+        type=str,
+        default=None,
+        help="Directory that contains a lora_adapter folder. Defaults to the most recent run under outputs/.",
+    )
     return parser.parse_args()
 
 
@@ -107,7 +126,7 @@ def main():
     )
     FastLanguageModel.for_inference(base_model)
 
-    adapter_path = Path(OUTPUT_DIR) / "lora_adapter"
+    adapter_path = resolve_adapter_path(args.output_dir)
     if not adapter_path.exists():
         raise FileNotFoundError(
             f"Fine-tuned adapter not found at {adapter_path}. "
