@@ -96,6 +96,46 @@ After installing packages, go to Runtime > Restart runtime and rerun the noteboo
 !python src/train.py --model llama-3.1-8b
 ```
 
+### 3A) Single-cell Colab runner (recommended)
+
+This is the cleanest method for Google Colab. Everything is done in one cell with a fixed repo path, so there is no dependence on the current directory name.
+
+```python
+# Single-cell Colab setup + fine-tuning
+REPO_PATH = "/content/General-LLM-Finetune"
+MODEL_KEY = "llama-3.1-8b"
+RUN_NAME = "colab-demo-run"
+SYSTEM_PROMPT = "You are a helpful AI assistant for coding, writing, and practical problem solving."
+
+# 1) Clone repo into a fixed path
+!rm -rf "$REPO_PATH"
+!git clone https://github.com/metehan05-eng/General-LLM-Finetune.git "$REPO_PATH"
+%cd "$REPO_PATH"
+!pwd
+!ls
+
+# 2) Update pip and fix common package conflict
+!pip install --upgrade pip setuptools wheel
+!pip uninstall -y gcsfs fsspec || true
+!pip install --no-cache-dir -r requirements.txt
+!pip install --no-cache-dir --force-reinstall "fsspec==2025.12.0" "gcsfs==2025.12.0"
+
+# 3) GPU check
+import torch
+print("CUDA available:", torch.cuda.is_available())
+if not torch.cuda.is_available():
+    raise RuntimeError("Enable GPU runtime in Colab: Runtime > Change runtime type > T4 or A100")
+print("GPU:", torch.cuda.get_device_name(0))
+
+# 4) Train the model in one go
+!python src/train.py --model "$MODEL_KEY" --run-name "$RUN_NAME" --system-prompt "$SYSTEM_PROMPT"
+
+# 5) Optional: evaluate right after training
+!python src/evaluate.py --model "$MODEL_KEY" --system-prompt "$SYSTEM_PROMPT"
+```
+
+If the install step still warns about stale imports, click Runtime > Restart runtime and run the cell again once.
+
 ### 4) Run evaluation
 
 ```bash
