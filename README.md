@@ -149,7 +149,52 @@ If the install step still warns about stale imports, click Runtime > Restart run
 !python src/evaluate.py --model llama-3.1-8b
 ```
 
-### 5) Optional: install compatible versions for Colab package conflicts
+### 5) Export the model to GGUF (Ollama / llama.cpp / LM Studio)
+
+Training only saves the small **LoRA adapter** (`outputs/<run>/lora_adapter`), not a self-contained model. To use your fine-tuned model in local runtimes like Ollama, llama.cpp, or LM Studio, you first merge the base model with the adapter and export to GGUF.
+
+Run this cell in Colab **after training** (adjust the run name path to match your run):
+
+```python
+from unsloth import FastLanguageModel
+
+# Change the run name below to match your own run
+ADAPTER = "/content/General-LLM-Finetune/outputs/llama-3.1-8b-colab-demo-run/lora_adapter"
+GGUF_DIR = "/content/General-LLM-Finetune/outputs/llama-3.1-8b-colab-demo-run/gguf"
+
+# adapter_config.json exists so Unsloth automatically loads the base model + LoRA
+model, tokenizer = FastLanguageModel.from_pretrained(
+    model_name=ADAPTER,
+    max_seq_length=2048,
+    dtype=None,
+    load_in_4bit=True,
+)
+FastLanguageModel.for_inference(model)
+
+# Merges the adapter into the base model and converts to GGUF.
+# llama.cpp is downloaded automatically; this takes a few minutes and needs
+# ~20 GB of free disk space for an 8B model.
+model.save_pretrained_gguf(GGUF_DIR, tokenizer, quantization_method="q4_k_m")
+```
+
+Check the output:
+
+```bash
+!ls -lh "$GGUF_DIR"
+```
+
+Notes:
+
+- `quantization_method` is case-sensitive and must be lowercase: `q4_k_m` (≈4.7 GB, recommended), `q8_0` (≈8.5 GB), or `f16` (≈16 GB).
+- The resulting `model-*-Q4_K_M.gguf` file can be used directly with llama.cpp, or imported into Ollama with:
+
+```bash
+!ollama create my-finemodel -f <path-to-Modelfile>
+```
+
+- gguf export is the correct step whenever a runtime asks for a single `.gguf` file. The `lora_adapter` folder by itself is not runnable.
+
+### 6) Optional: install compatible versions for Colab package conflicts
 
 If you see a warning like `gcsfs requires fsspec==2025.12.0`, you can fix it with:
 
@@ -159,7 +204,7 @@ If you see a warning like `gcsfs requires fsspec==2025.12.0`, you can fix it wit
 
 If you do not use `gcsfs`, removing it is also fine.
 
-### 6) Model selection examples
+### 7) Model selection examples
 
 ```bash
 !python src/train.py --model mistral-7b
