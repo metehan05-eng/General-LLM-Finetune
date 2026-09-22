@@ -64,11 +64,13 @@ If this prints `False`, switch to a GPU runtime and rerun the cell.
 
 ### 2) Clean Colab install from scratch
 
-If you have already tried a pip install in this runtime, it is safer to start from a clean environment so old packages do not remain in memory.
+Do not rely on a relative folder name like `%cd General-LLM-Finetune` unless you are certain the current directory is correct. In Colab, the most reliable pattern is to clone directly into an exact path and then enter that path explicitly.
 
 ```bash
-!git clone https://github.com/metehan05-eng/General-LLM-Finetune.git
-%cd General-LLM-Finetune
+!git clone https://github.com/metehan05-eng/General-LLM-Finetune.git /content/General-LLM-Finetune
+%cd /content/General-LLM-Finetune
+!pwd
+!ls
 
 # Upgrade the package installer first
 !pip install --upgrade pip setuptools wheel
