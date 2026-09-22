@@ -72,13 +72,11 @@ Do not rely on a relative folder name like `%cd General-LLM-Finetune` unless you
 !pwd
 !ls
 
-# Upgrade the package installer first
-!pip install --upgrade pip setuptools wheel
+# Check GPU first (must print a "+cu..." torch build, not "+cpu")
+import torch
+print(torch.__version__, torch.cuda.is_available())
 
-# Remove stale or conflicting packages from this runtime if they were already installed
-!pip uninstall -y gcsfs fsspec || true
-
-# Reinstall the project dependencies
+# Install dependencies (PyPI wheels; no git clone, no setuptools upgrade)
 !pip install --no-cache-dir -r requirements.txt
 ```
 
@@ -113,6 +111,16 @@ SYSTEM_PROMPT = "You are a helpful AI assistant for coding, writing, and practic
 %env RUN_NAME={RUN_NAME}
 %env SYSTEM_PROMPT={SYSTEM_PROMPT}
 
+# 0) Verify GPU runtime FIRST (torch is preinstalled in Colab)
+#    torch.__version__ must end in "+cu..." (e.g. 2.7.0+cu126).
+#    If it ends in "+cpu" you are on a CPU runtime -> switch to GPU below.
+import torch
+print("torch:", torch.__version__)
+print("CUDA available:", torch.cuda.is_available())
+if not torch.cuda.is_available():
+    raise RuntimeError("No GPU! Runtime > Change runtime type > T4 or A100, then Runtime > Restart runtime.")
+print("GPU:", torch.cuda.get_device_name(0))
+
 # 1) Clone repo safely without deleting the current working directory
 !mkdir -p /content
 !cd /content && if [ ! -d "$REPO_PATH" ]; then git clone https://github.com/metehan05-eng/General-LLM-Finetune.git "$REPO_PATH"; fi
@@ -120,23 +128,14 @@ SYSTEM_PROMPT = "You are a helpful AI assistant for coding, writing, and practic
 !pwd
 !ls
 
-# 2) Install dependencies
-!pip install --upgrade pip setuptools wheel
-!pip uninstall -y gcsfs fsspec || true
-!pip install --no-cache-dir -r requirements.txt
-!pip install --no-cache-dir --force-reinstall "fsspec==2025.12.0" "gcsfs==2025.12.0"
+# 2) Install dependencies (PyPI wheels only - no slow/fragile git clone).
+#    Do NOT upgrade setuptools to >= 82 or you will break the preinstalled torch.
+!pip install -q --no-cache-dir -r requirements.txt
 
-# 3) Check GPU runtime
-import torch
-print("CUDA available:", torch.cuda.is_available())
-if not torch.cuda.is_available():
-    raise RuntimeError("Enable GPU runtime in Colab: Runtime > Change runtime type > T4 or A100")
-print("GPU:", torch.cuda.get_device_name(0))
-
-# 4) Train the model in one go
+# 3) Train the model in one go
 !python src/train.py --model "$MODEL_KEY" --run-name "$RUN_NAME" --system-prompt "$SYSTEM_PROMPT"
 
-# 5) Evaluate the trained model
+# 4) Evaluate the trained model
 !python src/evaluate.py --model "$MODEL_KEY" --system-prompt "$SYSTEM_PROMPT"
 ```
 
