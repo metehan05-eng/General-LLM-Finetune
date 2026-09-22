@@ -107,6 +107,12 @@ MODEL_KEY = "llama-3.1-8b"
 RUN_NAME = "colab-demo-run"
 SYSTEM_PROMPT = "You are a helpful AI assistant for coding, writing, and practical problem solving."
 
+# Export Python values into the shell environment so ! commands can use them reliably
+%env REPO_PATH={REPO_PATH}
+%env MODEL_KEY={MODEL_KEY}
+%env RUN_NAME={RUN_NAME}
+%env SYSTEM_PROMPT={SYSTEM_PROMPT}
+
 # 1) Clone repo into a fixed path
 !rm -rf "$REPO_PATH"
 !git clone https://github.com/metehan05-eng/General-LLM-Finetune.git "$REPO_PATH"
