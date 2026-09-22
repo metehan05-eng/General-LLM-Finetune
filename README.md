@@ -101,34 +101,32 @@ After installing packages, go to Runtime > Restart runtime and rerun the noteboo
 This is the cleanest method for Google Colab. Everything is done in one cell with a fixed repo path, so there is no dependence on the current directory name.
 
 ```python
-# Single-cell Colab setup + fine-tuning
+# Final one-cell Colab runner
 REPO_PATH = "/content/General-LLM-Finetune"
 MODEL_KEY = "llama-3.1-8b"
 RUN_NAME = "colab-demo-run"
 SYSTEM_PROMPT = "You are a helpful AI assistant for coding, writing, and practical problem solving."
 
-# Export Python values into the shell environment so ! commands can use them reliably
+# Export environment variables for shell commands
 %env REPO_PATH={REPO_PATH}
 %env MODEL_KEY={MODEL_KEY}
 %env RUN_NAME={RUN_NAME}
 %env SYSTEM_PROMPT={SYSTEM_PROMPT}
 
-# IMPORTANT:
-# Never delete the current working directory while you are inside it.
-# Instead, start from /content and clone only if the repo is missing.
+# 1) Clone repo safely without deleting the current working directory
 !mkdir -p /content
 !cd /content && if [ ! -d "$REPO_PATH" ]; then git clone https://github.com/metehan05-eng/General-LLM-Finetune.git "$REPO_PATH"; fi
 %cd "$REPO_PATH"
 !pwd
 !ls
 
-# 2) Update pip and fix common package conflict
+# 2) Install dependencies
 !pip install --upgrade pip setuptools wheel
 !pip uninstall -y gcsfs fsspec || true
 !pip install --no-cache-dir -r requirements.txt
 !pip install --no-cache-dir --force-reinstall "fsspec==2025.12.0" "gcsfs==2025.12.0"
 
-# 3) GPU check
+# 3) Check GPU runtime
 import torch
 print("CUDA available:", torch.cuda.is_available())
 if not torch.cuda.is_available():
@@ -138,9 +136,11 @@ print("GPU:", torch.cuda.get_device_name(0))
 # 4) Train the model in one go
 !python src/train.py --model "$MODEL_KEY" --run-name "$RUN_NAME" --system-prompt "$SYSTEM_PROMPT"
 
-# 5) Optional: evaluate right after training
+# 5) Evaluate the trained model
 !python src/evaluate.py --model "$MODEL_KEY" --system-prompt "$SYSTEM_PROMPT"
 ```
+
+> Important: if you see `CUDA available: False`, stop here and switch Colab to a T4/A100 GPU runtime. Training will not work on CPU-only mode.
 
 If the install step still warns about stale imports, click Runtime > Restart runtime and run the cell again once.
 
