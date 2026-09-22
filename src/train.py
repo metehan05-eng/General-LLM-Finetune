@@ -24,7 +24,7 @@ try:
 except ImportError:
     from src.prepare_dataset import build_dataset
 
-from model_config import resolve_model_name, resolve_model_spec
+from model_config import generate_run_name, prompt_for_model_choice, resolve_model_name, resolve_model_spec
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 
@@ -44,6 +44,7 @@ GRAD_ACCUMULATION_STEPS = 4
 def parse_args():
     parser = argparse.ArgumentParser(description="Fine-tune a general-purpose LLM with Unsloth + QLoRA.")
     parser.add_argument("--model", type=str, default=None, help="Model key or Hugging Face model id.")
+    parser.add_argument("--run-name", type=str, default=None, help="Friendly name for this fine-tuning run.")
     parser.add_argument("--max-seq-length", type=int, default=MAX_SEQ_LENGTH, help="Maximum sequence length for tokenization.")
     parser.add_argument("--epochs", type=int, default=NUM_TRAIN_EPOCHS, help="Number of train epochs.")
     parser.add_argument("--learning-rate", type=float, default=LEARNING_RATE, help="Learning rate for the optimizer.")
@@ -61,11 +62,22 @@ def main():
     global MODEL_NAME, MAX_SEQ_LENGTH, LOAD_IN_4BIT, OUTPUT_DIR, LORA_R, LORA_ALPHA
     global NUM_TRAIN_EPOCHS, LEARNING_RATE, PER_DEVICE_BATCH_SIZE, GRAD_ACCUMULATION_STEPS
 
+    if args.model is None:
+        selected_model, auto_run_name = prompt_for_model_choice()
+        args.model = selected_model
+        if args.run_name is None:
+            args.run_name = auto_run_name
+
     model_spec = resolve_model_spec(args.model)
     MODEL_NAME = model_spec.hf_id
     MAX_SEQ_LENGTH = args.max_seq_length if args.max_seq_length else model_spec.default_max_seq_length
     LOAD_IN_4BIT = args.quantization == "4bit"
+
+    run_name = generate_run_name(model_spec.key, args.run_name)
+    if args.output_dir == OUTPUT_DIR:
+        args.output_dir = str(PROJECT_ROOT / "outputs" / run_name)
     OUTPUT_DIR = args.output_dir
+
     LORA_R = args.lora_r
     LORA_ALPHA = args.lora_alpha
     NUM_TRAIN_EPOCHS = args.epochs
@@ -74,6 +86,8 @@ def main():
     GRAD_ACCUMULATION_STEPS = args.gradient_accumulation_steps
 
     print(f"Selected model: {MODEL_NAME} ({model_spec.family})")
+    print(f"Training run name: {run_name}")
+    print(f"Output directory: {OUTPUT_DIR}")
     print(f"Loading base model: {MODEL_NAME}")
     model, tokenizer = FastLanguageModel.from_pretrained(
         model_name=MODEL_NAME,

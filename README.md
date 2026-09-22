@@ -62,13 +62,31 @@ print(torch.cuda.get_device_name(0) if torch.cuda.is_available() else "NO GPU")
 
 If this prints `False`, switch to a GPU runtime and rerun the cell.
 
-### 2) Clone the repo and install dependencies
+### 2) Clean Colab install from scratch
+
+If you have already tried a pip install in this runtime, it is safer to start from a clean environment so old packages do not remain in memory.
 
 ```bash
 !git clone https://github.com/metehan05-eng/General-LLM-Finetune.git
 %cd General-LLM-Finetune
-!pip install -r requirements.txt
+
+# Upgrade the package installer first
+!pip install --upgrade pip setuptools wheel
+
+# Remove stale or conflicting packages from this runtime if they were already installed
+!pip uninstall -y gcsfs fsspec || true
+
+# Reinstall the project dependencies
+!pip install --no-cache-dir -r requirements.txt
 ```
+
+If you still see a version conflict like `gcsfs 2025.12.0 requires fsspec==2025.12.0`, run this next and then restart the runtime:
+
+```bash
+!pip install --no-cache-dir --force-reinstall "fsspec==2025.12.0" "gcsfs==2025.12.0"
+```
+
+After installing packages, go to Runtime > Restart runtime and rerun the notebook cells.
 
 ### 3) Run training
 
