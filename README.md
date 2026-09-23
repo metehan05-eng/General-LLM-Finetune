@@ -177,22 +177,84 @@ FastLanguageModel.for_inference(model)
 model.save_pretrained_gguf(GGUF_DIR, tokenizer, quantization_method="q4_k_m")
 ```
 
-Check the output:
+Check the output (the GGUF lands in a `_gguf` suffixed folder next to `GGUF_DIR`):
 
 ```bash
-!ls -lh "$GGUF_DIR"
+!ls -lh "$GGUF_DIR"_gguf
 ```
 
 Notes:
 
 - `quantization_method` is case-sensitive and must be lowercase: `q4_k_m` (≈4.7 GB, recommended), `q8_0` (≈8.5 GB), or `f16` (≈16 GB).
-- The resulting `model-*-Q4_K_M.gguf` file can be used directly with llama.cpp, or imported into Ollama with:
+- The resulting `.gguf` file can be used directly with llama.cpp or LM Studio, and imported into Ollama with a Modelfile (see below).
+- The `lora_adapter` folder by itself is not runnable — GGUF export is the correct step whenever a runtime asks for a single `.gguf` file.
 
-```bash
-!ollama create my-finemodel -f <path-to-Modelfile>
+#### 5A) Download the GGUF to your computer (from Colab)
+
+The simplest way to get the file off Colab is the browser download. Keep the tab open while it downloads:
+
+```python
+from google.colab import files
+
+GGUF_FILE = "/content/General-LLM-Finetune/outputs/llama-3.1-8b-colab-demo-run/gguf_gguf/Meta-Llama-3.1-8B.Q4_K_M.gguf"
+files.download(GGUF_FILE)
 ```
 
-- gguf export is the correct step whenever a runtime asks for a single `.gguf` file. The `lora_adapter` folder by itself is not runnable.
+For large files a direct download can occasionally drop; if that happens, use 5B below and pull it from Hugging Face instead.
+
+#### 5B) Push the GGUF to Hugging Face
+
+This also gives you a permanent link you can share. Create a model repo on [huggingface.co/new](https://huggingface.co/new) (e.g. `llama-3.1-8b-colab-demo`) and get a token with *write* access from [huggingface.co/settings/tokens](https://huggingface.co/settings/tokens). Then in Colab:
+
+```python
+from huggingface_hub import HfApi, login
+
+login()  # paste your HF token
+
+GGUF_FILE = "/content/General-LLM-Finetune/outputs/llama-3.1-8b-colab-demo-run/gguf_gguf/Meta-Llama-3.1-8B.Q4_K_M.gguf"
+HF_REPO_ID = "metehan05-eng/llama-3.1-8b-colab-demo"  # your username/repo-name
+
+api = HfApi()
+api.create_repo(
+    HF_REPO_ID,
+    repo_type="model",
+    private=False,  # True if you don't want it public
+    exist_ok=True,
+)
+api.upload_file(
+    path_or_fileobj=GGUF_FILE,
+    path_in_repo="Meta-Llama-3.1-8B.Q4_K_M.gguf",
+    repo_id=HF_REPO_ID,
+)
+print(f"Done: https://huggingface.co/{HF_REPO_ID}")
+```
+
+The 4.7 GB file uploads over HTTP (no git/LFS tricks needed). Anyone can then download it, e.g. with `huggingface-cli download <HF_REPO_ID> Meta-Llama-3.1-8B.Q4_K_M.gguf`, or directly in Colab with:
+
+```bash
+!huggingface-cli download "$HF_REPO_ID" Meta-Llama-3.1-8B.Q4_K_M.gguf --local-dir .
+```
+
+#### 5C) Import into Ollama
+
+The export skips the Ollama Modelfile ("No Ollama template mapping found") for base models that have no built-in chat template. Our training used an `Instruction / Input / Response` format, so create a `Modelfile` matching it before running `ollama create`:
+
+```text
+FROM /path/to/Meta-Llama-3.1-8B.Q4_K_M.gguf
+TEMPLATE """{{ if .System }}System: {{ .System }}
+
+{{ end }}Instruction: {{ .Prompt }}
+
+Input:
+
+Response:"""
+PARAMETER temperature 0.7
+```
+
+```bash
+ollama create my-finemodel -f Modelfile
+ollama run my-finemodel "Explain what overfitting means in machine learning."
+```
 
 ### 6) Optional: install compatible versions for Colab package conflicts
 
