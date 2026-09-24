@@ -171,6 +171,10 @@ model, tokenizer = FastLanguageModel.from_pretrained(
 )
 FastLanguageModel.for_inference(model)
 
+# (Optional) Pick a custom output name. Without this the file is named
+# after the base model, e.g. "Meta-Llama-3.1-8B.Q4_K_M.gguf".
+model.config._name_or_path = "my-llama3.1-8b-custom"
+
 # Merges the adapter into the base model and converts to GGUF.
 # llama.cpp is downloaded automatically; this takes a few minutes and needs
 # ~20 GB of free disk space for an 8B model.
@@ -196,7 +200,8 @@ The simplest way to get the file off Colab is the browser download. Keep the tab
 ```python
 from google.colab import files
 
-GGUF_FILE = "/content/General-LLM-Finetune/outputs/llama-3.1-8b-colab-demo-run/gguf_gguf/Meta-Llama-3.1-8B.Q4_K_M.gguf"
+# Use the same custom name from section 5
+GGUF_FILE = "/content/General-LLM-Finetune/outputs/llama-3.1-8b-colab-demo-run/gguf_gguf/my-llama3.1-8b-custom.Q4_K_M.gguf"
 files.download(GGUF_FILE)
 ```
 
@@ -211,7 +216,8 @@ from huggingface_hub import HfApi, login
 
 login()  # paste your HF token
 
-GGUF_FILE = "/content/General-LLM-Finetune/outputs/llama-3.1-8b-colab-demo-run/gguf_gguf/Meta-Llama-3.1-8B.Q4_K_M.gguf"
+GGUF_FILE = "/content/General-LLM-Finetune/outputs/llama-3.1-8b-colab-demo-run/gguf_gguf/my-llama3.1-8b-custom.Q4_K_M.gguf"
+GGUF_FILENAME = "my-llama3.1-8b-custom.Q4_K_M.gguf"         # file name inside the repo
 HF_REPO_ID = "metehan05-eng/llama-3.1-8b-colab-demo"  # your username/repo-name
 
 api = HfApi()
@@ -223,16 +229,16 @@ api.create_repo(
 )
 api.upload_file(
     path_or_fileobj=GGUF_FILE,
-    path_in_repo="Meta-Llama-3.1-8B.Q4_K_M.gguf",
+    path_in_repo=GGUF_FILENAME,
     repo_id=HF_REPO_ID,
 )
 print(f"Done: https://huggingface.co/{HF_REPO_ID}")
 ```
 
-The 4.7 GB file uploads over HTTP (no git/LFS tricks needed). Anyone can then download it, e.g. with `huggingface-cli download <HF_REPO_ID> Meta-Llama-3.1-8B.Q4_K_M.gguf`, or directly in Colab with:
+The 4.7 GB file uploads over HTTP (no git/LFS tricks needed). Anyone can then download it, e.g. with `huggingface-cli download <HF_REPO_ID> my-llama3.1-8b-custom.Q4_K_M.gguf`, or directly in Colab with:
 
 ```bash
-!huggingface-cli download "$HF_REPO_ID" Meta-Llama-3.1-8B.Q4_K_M.gguf --local-dir .
+!huggingface-cli download "$HF_REPO_ID" my-llama3.1-8b-custom.Q4_K_M.gguf --local-dir .
 ```
 
 #### 5C) Import into Ollama
@@ -240,7 +246,7 @@ The 4.7 GB file uploads over HTTP (no git/LFS tricks needed). Anyone can then do
 The export skips the Ollama Modelfile ("No Ollama template mapping found") for base models that have no built-in chat template. Our training used an `Instruction / Input / Response` format, so create a `Modelfile` matching it before running `ollama create`:
 
 ```text
-FROM /path/to/Meta-Llama-3.1-8B.Q4_K_M.gguf
+FROM /path/to/my-llama3.1-8b-custom.Q4_K_M.gguf
 TEMPLATE """{{ if .System }}System: {{ .System }}
 
 {{ end }}Instruction: {{ .Prompt }}
