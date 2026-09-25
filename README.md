@@ -149,120 +149,7 @@ If the install step still warns about stale imports, click Runtime > Restart run
 !python src/evaluate.py --model llama-3.1-8b
 ```
 
-### 5) Export the model to GGUF (Ollama / llama.cpp / LM Studio)
-
-Training only saves the small **LoRA adapter** (`outputs/<run>/lora_adapter`), not a self-contained model. To use your fine-tuned model in local runtimes like Ollama, llama.cpp, or LM Studio, you first merge the base model with the adapter and export to GGUF.
-
-Run this cell in Colab **after training** (adjust the run name path to match your run):
-
-```python
-from unsloth import FastLanguageModel
-
-# Change the run name below to match your own run
-ADAPTER = "/content/General-LLM-Finetune/outputs/llama-3.1-8b-colab-demo-run/lora_adapter"
-GGUF_DIR = "/content/General-LLM-Finetune/outputs/llama-3.1-8b-colab-demo-run/gguf"
-
-# adapter_config.json exists so Unsloth automatically loads the base model + LoRA
-model, tokenizer = FastLanguageModel.from_pretrained(
-    model_name=ADAPTER,
-    max_seq_length=2048,
-    dtype=None,
-    load_in_4bit=True,
-)
-FastLanguageModel.for_inference(model)
-
-# (Optional) Pick a custom output name. Without this the file is named
-# after the base model, e.g. "Meta-Llama-3.1-8B.Q4_K_M.gguf".
-model.config._name_or_path = "my-llama3.1-8b-custom"
-
-# Merges the adapter into the base model and converts to GGUF.
-# llama.cpp is downloaded automatically; this takes a few minutes and needs
-# ~20 GB of free disk space for an 8B model.
-model.save_pretrained_gguf(GGUF_DIR, tokenizer, quantization_method="q4_k_m")
-```
-
-Check the output (the GGUF lands in a `_gguf` suffixed folder next to `GGUF_DIR`):
-
-```bash
-!ls -lh "$GGUF_DIR"_gguf
-```
-
-Notes:
-
-- `quantization_method` is case-sensitive and must be lowercase: `q4_k_m` (≈4.7 GB, recommended), `q8_0` (≈8.5 GB), or `f16` (≈16 GB).
-- The resulting `.gguf` file can be used directly with llama.cpp or LM Studio, and imported into Ollama with a Modelfile (see below).
-- The `lora_adapter` folder by itself is not runnable — GGUF export is the correct step whenever a runtime asks for a single `.gguf` file.
-
-#### 5A) Download the GGUF to your computer (from Colab)
-
-The simplest way to get the file off Colab is the browser download. Keep the tab open while it downloads:
-
-```python
-from google.colab import files
-
-# Use the same custom name from section 5
-GGUF_FILE = "/content/General-LLM-Finetune/outputs/llama-3.1-8b-colab-demo-run/gguf_gguf/my-llama3.1-8b-custom.Q4_K_M.gguf"
-files.download(GGUF_FILE)
-```
-
-For large files a direct download can occasionally drop; if that happens, use 5B below and pull it from Hugging Face instead.
-
-#### 5B) Push the GGUF to Hugging Face
-
-This also gives you a permanent link you can share. Create a model repo on [huggingface.co/new](https://huggingface.co/new) (e.g. `llama-3.1-8b-colab-demo`) and get a token with *write* access from [huggingface.co/settings/tokens](https://huggingface.co/settings/tokens). Then in Colab:
-
-```python
-from huggingface_hub import HfApi, login
-
-login()  # paste your HF token
-
-GGUF_FILE = "/content/General-LLM-Finetune/outputs/llama-3.1-8b-colab-demo-run/gguf_gguf/my-llama3.1-8b-custom.Q4_K_M.gguf"
-GGUF_FILENAME = "my-llama3.1-8b-custom.Q4_K_M.gguf"         # file name inside the repo
-HF_REPO_ID = "metehan05-eng/llama-3.1-8b-colab-demo"  # your username/repo-name
-
-api = HfApi()
-api.create_repo(
-    HF_REPO_ID,
-    repo_type="model",
-    private=False,  # True if you don't want it public
-    exist_ok=True,
-)
-api.upload_file(
-    path_or_fileobj=GGUF_FILE,
-    path_in_repo=GGUF_FILENAME,
-    repo_id=HF_REPO_ID,
-)
-print(f"Done: https://huggingface.co/{HF_REPO_ID}")
-```
-
-The 4.7 GB file uploads over HTTP (no git/LFS tricks needed). Anyone can then download it, e.g. with `huggingface-cli download <HF_REPO_ID> my-llama3.1-8b-custom.Q4_K_M.gguf`, or directly in Colab with:
-
-```bash
-!huggingface-cli download "$HF_REPO_ID" my-llama3.1-8b-custom.Q4_K_M.gguf --local-dir .
-```
-
-#### 5C) Import into Ollama
-
-The export skips the Ollama Modelfile ("No Ollama template mapping found") for base models that have no built-in chat template. Our training used an `Instruction / Input / Response` format, so create a `Modelfile` matching it before running `ollama create`:
-
-```text
-FROM /path/to/my-llama3.1-8b-custom.Q4_K_M.gguf
-TEMPLATE """{{ if .System }}System: {{ .System }}
-
-{{ end }}Instruction: {{ .Prompt }}
-
-Input:
-
-Response:"""
-PARAMETER temperature 0.7
-```
-
-```bash
-ollama create my-finemodel -f Modelfile
-ollama run my-finemodel "Explain what overfitting means in machine learning."
-```
-
-### 6) Optional: install compatible versions for Colab package conflicts
+### 5) Optional: install compatible versions for Colab package conflicts
 
 If you see a warning like `gcsfs requires fsspec==2025.12.0`, you can fix it with:
 
@@ -272,7 +159,7 @@ If you see a warning like `gcsfs requires fsspec==2025.12.0`, you can fix it wit
 
 If you do not use `gcsfs`, removing it is also fine.
 
-### 7) Model selection examples
+### 6) Model selection examples
 
 ```bash
 !python src/train.py --model mistral-7b
